@@ -47,32 +47,34 @@ const char *BLOCKTXN="blocktxn";
  * messages above and in protocol.h.
  */
 const static std::string allNetMessageTypes[] = {
-    NetMsgType::VERSION,
-    NetMsgType::VERACK,
-    NetMsgType::ADDR,
-    NetMsgType::INV,
-    NetMsgType::GETDATA,
-    NetMsgType::MERKLEBLOCK,
-    NetMsgType::GETBLOCKS,
-    NetMsgType::GETHEADERS,
-    NetMsgType::TX,
-    NetMsgType::HEADERS,
-    NetMsgType::BLOCK,
-    NetMsgType::GETADDR,
-    NetMsgType::MEMPOOL,
-    NetMsgType::PING,
-    NetMsgType::PONG,
-    NetMsgType::NOTFOUND,
-    NetMsgType::FILTERLOAD,
-    NetMsgType::FILTERADD,
-    NetMsgType::FILTERCLEAR,
-    NetMsgType::REJECT,
-    NetMsgType::SENDHEADERS,
-    NetMsgType::FEEFILTER,
-    NetMsgType::SENDCMPCT,
-    NetMsgType::CMPCTBLOCK,
-    NetMsgType::GETBLOCKTXN,
-    NetMsgType::BLOCKTXN,
+    NetMsgType::VERSION,	// 获取版本信息
+    NetMsgType::VERACK,	// 版本信息回应
+    NetMsgType::ADDR,	// 网络节点的地址
+    NetMsgType::INV,	// 库存清单
+    NetMsgType::GETDATA,	// 获取数据
+    NetMsgType::MERKLEBLOCK,	// merkle块
+    NetMsgType::GETBLOCKS,	// 获取区块
+    NetMsgType::GETHEADERS,	// 获取区块头
+    NetMsgType::TX,	// 交易信息
+    NetMsgType::HEADERS,	// 区块头
+    NetMsgType::BLOCK,	// 区块
+    NetMsgType::GETADDR,	// 获取地址
+    NetMsgType::MEMPOOL,	// 内存池
+    NetMsgType::PING,	// 判断网络是否连通
+    NetMsgType::PONG,	// ping消息回应
+    NetMsgType::NOTFOUND,	// 没有获取相匹配的数据
+    NetMsgType::FILTERLOAD,	// 加载过滤器
+    NetMsgType::FILTERADD,	// 添加过滤交易信息
+    NetMsgType::FILTERCLEAR,	// 清理过滤器
+    NetMsgType::REJECT,		// 拒绝
+
+    //======================网络协议版本号为70002之前======================
+    NetMsgType::SENDHEADERS,	// bip130 发送块头信息
+    NetMsgType::FEEFILTER,	// BIP133 feefilter
+    NetMsgType::SENDCMPCT,	// BIP152 发送紧凑区块
+    NetMsgType::CMPCTBLOCK,	// BIP152 紧凑区块
+    NetMsgType::GETBLOCKTXN,	// BIP152 获取紧凑区块交易
+    NetMsgType::BLOCKTXN,	// BIP152 紧凑区块交易
 };
 const static std::vector<std::string> allNetMessageTypesVec(allNetMessageTypes, allNetMessageTypes+ARRAYLEN(allNetMessageTypes));
 

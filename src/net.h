@@ -609,11 +609,11 @@ class CNode
 public:
     // socket
     std::atomic<ServiceFlags> nServices;
-    SOCKET hSocket;
-    size_t nSendSize; // total size of all vSendMsg entries
-    size_t nSendOffset; // offset inside the first vSendMsg already sent
+    SOCKET hSocket;	// 连接的 socket 句柄
+    size_t nSendSize; // total size of all vSendMsg entries, 所有vSendMsg条目的总大小
+    size_t nSendOffset; // offset inside the first vSendMsg already sent. 已经发送的第一个vSendMsg内的偏移量
     uint64_t nSendBytes;
-    std::deque<std::vector<unsigned char>> vSendMsg;
+    std::deque<std::vector<unsigned char>> vSendMsg;	// 发送消息的数组
     CCriticalSection cs_vSend;
     CCriticalSection cs_hSocket;
     CCriticalSection cs_vRecv;
@@ -633,15 +633,17 @@ public:
     const int64_t nTimeConnected;
     std::atomic<int64_t> nTimeOffset;
     // Address of this peer
-    const CAddress addr;
+    const CAddress addr;	// 节点地址信息
     // Bind address of our side of the connection
     const CAddress addrBind;
-    std::atomic<int> nVersion;
+    std::atomic<int> nVersion;	// 版本信息
     // strSubVer is whatever byte array we read from the wire. However, this field is intended
     // to be printed out, displayed to humans in various forms and so on. So we sanitize it and
     // store the sanitized version in cleanSubVer. The original should be used when dealing with
     // the network or wire types and the cleaned string used when displayed or logged.
-    std::string strSubVer, cleanSubVer;
+    std::string strSubVer;
+    std::string cleanSubVer;
+
     CCriticalSection cs_SubVer; // used for both cleanSubVer and strSubVer
     bool fWhitelisted; // This peer can bypass DoS banning.
     bool fFeeler; // If true this node is being used as a short lived feeler.
@@ -660,7 +662,7 @@ public:
     bool fSentAddr;
     CSemaphoreGrant grantOutbound;
     CCriticalSection cs_filter;
-    std::unique_ptr<CBloomFilter> pfilter;
+    std::unique_ptr<CBloomFilter> pfilter;	// 海量过滤器
     std::atomic<int> nRefCount;
 
     const uint64_t nKeyedNetGroup;
@@ -732,13 +734,13 @@ public:
     CNode& operator=(const CNode&) = delete;
 
 private:
-    const NodeId id;
+    const NodeId id;	// 节点ID
     const uint64_t nLocalHostNonce;
     // Services offered to this peer
     const ServiceFlags nLocalServices;
     const int nMyStartingHeight;
     int nSendVersion;
-    std::list<CNetMessage> vRecvMsg;  // Used only by SocketHandler thread
+    std::list<CNetMessage> vRecvMsg;  // Used only by SocketHandler thread. 接收消息的数组
 
     mutable CCriticalSection cs_addrName;
     std::string addrName;
@@ -801,6 +803,7 @@ public:
         addrKnown.insert(_addr.GetKey());
     }
 
+    // 发送地址
     void PushAddress(const CAddress& _addr, FastRandomContext &insecure_rand)
     {
         // Known checking here is only to save space from duplicates.
@@ -824,6 +827,7 @@ public:
         }
     }
 
+    // 用来发送 inventory　消息
     void PushInventory(const CInv& inv)
     {
         LOCK(cs_inventory);

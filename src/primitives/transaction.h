@@ -14,17 +14,21 @@
 
 static const int SERIALIZE_TRANSACTION_NO_WITNESS = 0x40000000;
 
-/** An outpoint - a combination of a transaction hash and an index n into its vout */
+/**
+ * An outpoint - a combination of a transaction hash and an index n into its vout
+ * COutPoint主要用在交易的输入CTxIn中，用来确定当前输出的来源
+ * 包括前一笔交易的hash，以及对应前一笔交易中的第几个输出的序列号
+ * */
 class COutPoint
 {
 public:
-    uint256 hash;
-    uint32_t n;
+    uint256 hash;	// 交易的哈希
+    uint32_t n;		// 对应的序列号
 
     COutPoint(): n((uint32_t) -1) { }
     COutPoint(const uint256& hashIn, uint32_t nIn): hash(hashIn), n(nIn) { }
 
-    ADD_SERIALIZE_METHODS;
+    ADD_SERIALIZE_METHODS;	// 用来序列化数据结构，方便存储和传输
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
@@ -35,6 +39,7 @@ public:
     void SetNull() { hash.SetNull(); n = (uint32_t) -1; }
     bool IsNull() const { return (hash.IsNull() && n == (uint32_t) -1); }
 
+    // 重载小于号
     friend bool operator<(const COutPoint& a, const COutPoint& b)
     {
         int cmp = a.hash.Compare(b.hash);

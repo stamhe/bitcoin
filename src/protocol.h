@@ -24,14 +24,21 @@
  * (12) command.
  * (4) size.
  * (4) checksum.
+ *
+ * https://mp.weixin.qq.com/s/C8SvXrR8q0JujM3MwHa3_w
  */
 class CMessageHeader
 {
 public:
     static constexpr size_t MESSAGE_START_SIZE = 4;
-    static constexpr size_t COMMAND_SIZE = 12;
-    static constexpr size_t MESSAGE_SIZE_SIZE = 4;
-    static constexpr size_t CHECKSUM_SIZE = 4;
+    //消息开始字符串，长度4字节，就是告诉你是属于哪种消息标识，在UTF-8中无效
+    //主类型（MAIN）：   0xd9b4bef9
+    //测试网络(TESTNET)：0x0709110b
+    //回归测试(REGTEST)：0xdab6bffa
+
+    static constexpr size_t COMMAND_SIZE = 12; //定义了通信中的各种命令，由0x20~0x7F之间的字符串构成
+    static constexpr size_t MESSAGE_SIZE_SIZE = 4; //最大值是32M (0x02000000)。 不包含消息头的大小
+    static constexpr size_t CHECKSUM_SIZE = 4; //把消息数据经过2次SHA256算法运算得到校验和
     static constexpr size_t MESSAGE_SIZE_OFFSET = MESSAGE_START_SIZE + COMMAND_SIZE;
     static constexpr size_t CHECKSUM_OFFSET = MESSAGE_SIZE_OFFSET + MESSAGE_SIZE_SIZE;
     static constexpr size_t HEADER_SIZE = MESSAGE_START_SIZE + COMMAND_SIZE + MESSAGE_SIZE_SIZE + CHECKSUM_SIZE;
@@ -371,11 +378,11 @@ const uint32_t MSG_TYPE_MASK    = 0xffffffff >> 2;
 enum GetDataMsg
 {
     UNDEFINED = 0,
-    MSG_TX = 1,
-    MSG_BLOCK = 2,
+    MSG_TX = 1,	// 交易消息
+    MSG_BLOCK = 2,	// 区块
     // The following can only occur in getdata. Invs always use TX or BLOCK.
-    MSG_FILTERED_BLOCK = 3,  //!< Defined in BIP37
-    MSG_CMPCT_BLOCK = 4,     //!< Defined in BIP152
+    MSG_FILTERED_BLOCK = 3,  //!< Defined in BIP37, 过滤的区块
+    MSG_CMPCT_BLOCK = 4,     //!< Defined in BIP152, 紧凑区块
     MSG_WITNESS_BLOCK = MSG_BLOCK | MSG_WITNESS_FLAG, //!< Defined in BIP144
     MSG_WITNESS_TX = MSG_TX | MSG_WITNESS_FLAG,       //!< Defined in BIP144
     MSG_FILTERED_WITNESS_BLOCK = MSG_FILTERED_BLOCK | MSG_WITNESS_FLAG,
