@@ -45,36 +45,51 @@ struct BIP9Deployment {
 
 /**
  * Parameters that influence chain consensus.
+ * 影响区块共识的参数
  */
 struct Params {
-    uint256 hashGenesisBlock;
-    int nSubsidyHalvingInterval;
+    uint256 hashGenesisBlock;	// 创世区块的hash
+    int nSubsidyHalvingInterval;	// 奖励减半时间间隔
     /** Block height at which BIP16 becomes active */
     int BIP16Height;
-    /** Block height and hash at which BIP34 becomes active */
+
+    /** Block height and hash at which BIP34 becomes active
+     * 区块高度
+     * */
     int BIP34Height;
+
+    // 区块hash
     uint256 BIP34Hash;
+
     /** Block height at which BIP65 becomes active */
     int BIP65Height;
+
     /** Block height at which BIP66 becomes active */
     int BIP66Height;
+
     /**
      * Minimum blocks including miner confirmation of the total of 2016 blocks in a retargeting period,
      * (nPowTargetTimespan / nPowTargetSpacing) which is also used for BIP9 deployments.
      * Examples: 1916 for 95%, 1512 for testchains.
+     * 在 2016 个区块中至少要有多少个区块被矿工确认，规则改变才能生效
+     * 在　BIP9　上线时还使用( nPowTargetTimespan / nPowTargetSpacing )
+     *
      */
     uint32_t nRuleChangeActivationThreshold;
     uint32_t nMinerConfirmationWindow;
     BIP9Deployment vDeployments[MAX_VERSION_BITS_DEPLOYMENTS];
-    /** Proof of work parameters */
-    uint256 powLimit;
-    bool fPowAllowMinDifficultyBlocks;
-    bool fPowNoRetargeting;
-    int64_t nPowTargetSpacing;
-    int64_t nPowTargetTimespan;
+
+    /** Proof of work parameters
+     * POW参数
+     * */
+    uint256 powLimit;	// 难度
+    bool fPowAllowMinDifficultyBlocks;	// 是否允许最低难度
+    bool fPowNoRetargeting;	// 不调整难度
+    int64_t nPowTargetSpacing;	// 区块产生平均时间
+    int64_t nPowTargetTimespan;	// 难度调整时间
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
-    uint256 nMinimumChainWork;
-    uint256 defaultAssumeValid;
+    uint256 nMinimumChainWork;	// 当前难度最小值
+    uint256 defaultAssumeValid;	// 在此区块之前的区块都认为是最有效的
 };
 } // namespace Consensus
 

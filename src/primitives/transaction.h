@@ -62,31 +62,41 @@ public:
 /** An input of a transaction.  It contains the location of the previous
  * transaction's output that it claims and a signature that matches the
  * output's public key.
+ * 交易的输入，包括当前输入对应前一笔交易的输出的位置，以及花费前一笔输出需要的签名脚本
+ * CScriptWitness是用来支持隔离见证时使用的。
  */
 class CTxIn
 {
 public:
-    COutPoint prevout;
-    CScript scriptSig;
-    uint32_t nSequence;
+    COutPoint prevout;	// 前一笔交易输出的位置
+    CScript scriptSig;	// 解锁脚本
+    uint32_t nSequence;	// 序列号
     CScriptWitness scriptWitness; //! Only serialized through CTransaction
 
     /* Setting nSequence to this value for every input in a transaction
-     * disables nLockTime. */
+     * disables nLockTime.
+     * 规则一：如果一笔交易中所有的 SEQUENCE_FINAL 都被赋值了相应的nSequence，那么 nLockTime 就会被禁用
+     * */
     static const uint32_t SEQUENCE_FINAL = 0xffffffff;
 
     /* Below flags apply in the context of BIP 68*/
     /* If this flag set, CTxIn::nSequence is NOT interpreted as a
-     * relative lock-time. */
+     * relative lock-time.
+     * 规则二：如果设置了这个变量，那么规则【１】就失效了
+     * */
     static const uint32_t SEQUENCE_LOCKTIME_DISABLE_FLAG = (1 << 31);
 
     /* If CTxIn::nSequence encodes a relative lock-time and this flag
      * is set, the relative lock-time has units of 512 seconds,
-     * otherwise it specifies blocks with a granularity of 1. */
+     * otherwise it specifies blocks with a granularity of 1.
+     * 规则三：如果规则【１】有效并且设置了此变量，那么相对锁定时间就为 512 s，否则锁定时间就为 1 个区块
+     * */
     static const uint32_t SEQUENCE_LOCKTIME_TYPE_FLAG = (1 << 22);
 
     /* If CTxIn::nSequence encodes a relative lock-time, this mask is
-     * applied to extract that lock-time from the sequence field. */
+     * applied to extract that lock-time from the sequence field.
+     * 规则四：如果规则【１】有效，那么这个变量就用来从 nSequence 计算对应的锁定时间
+     * */
     static const uint32_t SEQUENCE_LOCKTIME_MASK = 0x0000ffff;
 
     /* In order to use the same number of bits to encode roughly the
@@ -95,7 +105,9 @@ public:
      * for time-based relative lock-time is fixed at 512 seconds.
      * Converting from CTxIn::nSequence to seconds is performed by
      * multiplying by 512 = 2^9, or equivalently shifting up by
-     * 9 bits. */
+     * 9 bits.
+     *
+     * */
     static const int SEQUENCE_LOCKTIME_GRANULARITY = 9;
 
     CTxIn()
@@ -103,6 +115,7 @@ public:
         nSequence = SEQUENCE_FINAL;
     }
 
+    // 禁用隐式转换，构造函数必须明确使用当前形式
     explicit CTxIn(COutPoint prevoutIn, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=SEQUENCE_FINAL);
     CTxIn(uint256 hashPrevTx, uint32_t nOut, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=SEQUENCE_FINAL);
 
@@ -132,12 +145,13 @@ public:
 
 /** An output of a transaction.  It contains the public key that the next input
  * must be able to sign with to claim it.
+ * 交易的输出，包含金额和锁定脚本
  */
 class CTxOut
 {
 public:
-    CAmount nValue;
-    CScript scriptPubKey;
+    CAmount nValue;		// 输出金额
+    CScript scriptPubKey;	// 锁定脚本
 
     CTxOut()
     {
@@ -265,11 +279,14 @@ inline void SerializeTransaction(const TxType& tx, Stream& s) {
 
 /** The basic transaction that is broadcasted on the network and contained in
  * blocks.  A transaction can contain multiple inputs and outputs.
+ *
+ * 下面就是在网络中广播然后被打包进区块的最基本的交易的结构，一个交易可能包含多个交易输入和输出.
  */
 class CTransaction
 {
 public:
     // Default transaction version.
+    // 默认交易版本
     static const int32_t CURRENT_VERSION=2;
 
     // Changing the default transaction version requires a two step process: first
@@ -283,10 +300,15 @@ public:
     // actually immutable; deserialization and assignment are implemented,
     // and bypass the constness. This is safe, as they update the entire
     // structure, including the hash.
-    const std::vector<CTxIn> vin;
-    const std::vector<CTxOut> vout;
-    const int32_t nVersion;
-    const uint32_t nLockTime;
+    /**
+     * 下面这些变量都被定义为常量类型，从而避免无意识的修改了交易而没有更新缓存的 hash 值
+     * 但还是可以通过重新构造一个交易然后赋值给当前交易来进行修改，这样就更新了交易的所有内容
+     */
+
+    const std::vector<CTxIn> vin;	// 交易输入
+    const std::vector<CTxOut> vout;	// 交易输出
+    const int32_t nVersion;	// 版本
+    const uint32_t nLockTime;	// 锁定时间
 
 private:
     /** Memory only. */
@@ -324,17 +346,20 @@ public:
     uint256 GetWitnessHash() const;
 
     // Return sum of txouts.
+    // 返回交易输出金额之和
     CAmount GetValueOut() const;
     // GetValueIn() is a method on CCoinsViewCache, because
     // inputs must be known to compute value in.
 
     /**
      * Get the total transaction size in bytes, including witness data.
+     * 返回交易大小
      * "Total Size" defined in BIP141 and BIP144.
      * @return Total transaction size in bytes
      */
     unsigned int GetTotalSize() const;
 
+    // 判断是否是 coinbase　交易
     bool IsCoinBase() const
     {
         return (vin.size() == 1 && vin[0].prevout.IsNull());

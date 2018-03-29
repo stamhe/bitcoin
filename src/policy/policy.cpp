@@ -31,6 +31,16 @@ CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
     // so dust is a spendable txout less than
     // 98*dustRelayFee/1000 (in satoshis).
     // 294 satoshis at the default rate of 3000 sat/kB.
+    /*
+     * Dust 是根据 CTransaction 中的 minRelayTxFee　来定义的，单位是 satoshis/千字节
+     * 如果在一笔交易中交易费占了　1/3 以上，那么我们就认为该交易是 Dust 交易
+     * 因此 dust 交易的金额小于　182*dustRelayFee/1000
+     *
+     * 而在支持隔离见证的交易中，　txout 通常大小为 31 字节，CTxIn　大小至少为 67 字节，
+     * 此时　dust 交易的金额则一般小于　98*dustRelayFee/1000
+     */
+
+    // 判断脚本格式是否正确
     if (txout.scriptPubKey.IsUnspendable())
         return 0;
 
@@ -38,6 +48,7 @@ CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
     int witnessversion = 0;
     std::vector<unsigned char> witnessprogram;
 
+    // 判断是否支持隔离见证
     if (txout.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
         // sum the sizes of the parts of a transaction input
         // with 75% segwit discount applied to the script size.

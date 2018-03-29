@@ -16,17 +16,23 @@
  * to everyone and the block is added to the block chain.  The first transaction
  * in the block is a special one that creates a new coin owned by the creator
  * of the block.
+ *
+ * 网络中的节点不断收集新的交易，然后一个 Merkle树的形式打包进区块中，
+ * 打包的过程就是要完成工作量证明的要求，当节点解出了当前的随机数时，
+ * 它就把当前的区块广播到其他所有节点，并且加到区块链上。
+ *
+ * 区块中的第一笔交易称之为 CoinBase　交易，是产生的新币，发送给区块的产生者。
  */
 class CBlockHeader
 {
 public:
     // header
-    int32_t nVersion;
-    uint256 hashPrevBlock;
-    uint256 hashMerkleRoot;
-    uint32_t nTime;
-    uint32_t nBits;
-    uint32_t nNonce;
+    int32_t nVersion;		// 版本
+    uint256 hashPrevBlock;	// 前一个区块的hash
+    uint256 hashMerkleRoot;	// Merkle树根
+    uint32_t nTime;		// 时间戳
+    uint32_t nBits;		// POW难度
+    uint32_t nNonce;		// 要找的随机数
 
     CBlockHeader()
     {
@@ -73,9 +79,11 @@ class CBlock : public CBlockHeader
 {
 public:
     // network and disk
+    // 所有的交易
     std::vector<CTransactionRef> vtx;
 
     // memory only
+    // 交易是否验证过并构成Merkle树
     mutable bool fChecked;
 
     CBlock()
