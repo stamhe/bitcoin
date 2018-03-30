@@ -750,6 +750,8 @@ void InitParameterInteraction()
             LogPrintf("%s: parameter interaction: -whitebind set -> setting -listen=1\n", __func__);
     }
 
+    // -connect参数是用来只连接信任的节点，而不通过dns种子随机发现网络中的节点，同时默认设置也是不监听端口，也就是不接受其他节点的请求，
+    // 注意这里和RPC Server不一样，这里是接收网络中其他节点发送的消息，和RPC server使用不同的端口。
     if (gArgs.IsArgSet("-connect")) {
         // when only connecting to trusted nodes, do not seed via DNS, or listen by default
         if (gArgs.SoftSetBoolArg("-dnsseed", false))
@@ -758,6 +760,7 @@ void InitParameterInteraction()
             LogPrintf("%s: parameter interaction: -connect set -> setting -listen=0\n", __func__);
     }
 
+    // -proxy则是设置代理服务器，所有消息都由代理服务器转发，一般设置代理的目的就是为了保护原始IP地址隐私，避免外部的攻击，所以这里默认禁用监听。
     if (gArgs.IsArgSet("-proxy")) {
         // to protect privacy, do not listen by default if a default proxy server is specified
         if (gArgs.SoftSetBoolArg("-listen", false))
@@ -773,14 +776,20 @@ void InitParameterInteraction()
 
     if (!gArgs.GetBoolArg("-listen", DEFAULT_LISTEN)) {
         // do not map ports or try to retrieve public IP when not listening (pointless)
+	// -upnp参数全称是Universal Plug and Play，通用即插即用，是为了实现计算机与智能设备对等网络的连接体系结构，
+	// 主要目标是希望有任何设备连接到网络时，网络中的设备都能直接使用或者控制它，这里是不希望检测任何upnp设备。
         if (gArgs.SoftSetBoolArg("-upnp", false))
             LogPrintf("%s: parameter interaction: -listen=0 -> setting -upnp=0\n", __func__);
+
+        // -discover表示是否希望网络中的其他节点发现自己的地址，如果设置了代理，自然这里应设为false。
         if (gArgs.SoftSetBoolArg("-discover", false))
             LogPrintf("%s: parameter interaction: -listen=0 -> setting -discover=0\n", __func__);
+
         if (gArgs.SoftSetBoolArg("-listenonion", false))
             LogPrintf("%s: parameter interaction: -listen=0 -> setting -listenonion=0\n", __func__);
     }
 
+    // -externalip表示指定公有地址，也就是从指定的公有地址同步区块信息以及广播交易信息等等，所有的消息都只发向指定的共有地址，并且不寻找其他的地址。
     if (gArgs.IsArgSet("-externalip")) {
         // if an explicit public IP is specified, do not try to find others
         if (gArgs.SoftSetBoolArg("-discover", false))
@@ -788,13 +797,17 @@ void InitParameterInteraction()
     }
 
     // disable whitelistrelay in blocksonly mode
+    // -blocksonly表示该节点只接受矿工打包成功的区块，不接受未确认的交易，这是在当前节点网络资源有限的情况下减少负载的一种方式(https://github.com/bitcoin-dot-org/bitcoin.org/issues/1544)
     if (gArgs.GetBoolArg("-blocksonly", DEFAULT_BLOCKSONLY)) {
         if (gArgs.SoftSetBoolArg("-whitelistrelay", false))
             LogPrintf("%s: parameter interaction: -blocksonly=1 -> setting -whitelistrelay=0\n", __func__);
     }
 
     // Forcing relay from whitelisted hosts implies we will accept relays from them in the first place.
+    // -whiltelistforcerelay表示强制转发从白名单中继过来的交易信息，即使该交易违背了本地的策略，例如小于设置的交易费界限等等。
+    // 因为是强制转发，所以必须先接收交易信息，-whitelistrelay就要设置为true。
     if (gArgs.GetBoolArg("-whitelistforcerelay", DEFAULT_WHITELISTFORCERELAY)) {
+	// -whitelistrelay表示接受从白名单中的节点转发过来的交易，这个值默认是1，这里因为设置了只接受打包的区块，所以不会接受任何交易，自然也不会接受转发的交易。
         if (gArgs.SoftSetBoolArg("-whitelistrelay", true))
             LogPrintf("%s: parameter interaction: -whitelistforcerelay=1 -> setting -whitelistrelay=1\n", __func__);
     }
@@ -816,10 +829,10 @@ static std::string ResolveErrMsg(const char * const optname, const std::string& 
 
 void InitLogging()
 {
-    fPrintToConsole = gArgs.GetBoolArg("-printtoconsole", false);
-    fLogTimestamps = gArgs.GetBoolArg("-logtimestamps", DEFAULT_LOGTIMESTAMPS);
-    fLogTimeMicros = gArgs.GetBoolArg("-logtimemicros", DEFAULT_LOGTIMEMICROS);
-    fLogIPs = gArgs.GetBoolArg("-logips", DEFAULT_LOGIPS);
+    fPrintToConsole = gArgs.GetBoolArg("-printtoconsole", false);	// 将所有输出信息都直接输出到终端，而不是默认的debug.log文件。
+    fLogTimestamps = gArgs.GetBoolArg("-logtimestamps", DEFAULT_LOGTIMESTAMPS); // 给每一条输出信息附带时间戳，默认值为附带。
+    fLogTimeMicros = gArgs.GetBoolArg("-logtimemicros", DEFAULT_LOGTIMEMICROS); // 让时间戳精确到微秒精度，默认不附加。
+    fLogIPs = gArgs.GetBoolArg("-logips", DEFAULT_LOGIPS);	// 输出信息中附加ip地址，默认不附加。
 
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     std::string version_string = FormatFullVersion();
@@ -856,13 +869,33 @@ ServiceFlags nLocalServices = ServiceFlags(NODE_NETWORK | NODE_NETWORK_LIMITED);
 bool AppInitBasicSetup()
 {
     // ********************************************************* Step 1: setup
+    // 如果是 VS 环境那么就执行
 #ifdef _MSC_VER
     // Turn off Microsoft heap dump noise
+    /*
+    // https://msdn.microsoft.com/zh-cn/library/1y71x448.aspx
+    // https://blog.csdn.net/pure_lady/article/details/77962090
+   int _CrtSetReportMode(
+     int reportType,   // 报告的消息类型
+     int reportMode   // 处理的模式
+   );
+   如果指定的处理方式为写入文件即_CRTDBG_MODE_FILE那么还需要调用_CrtSetReportFile来设定输出的文件句柄，这也是代码的下一句，
+   但是源码却将文件的路径设为NUL也就是空文件，说明对于警告消息不做任何处理。
+     */
     _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
     _CrtSetReportFile(_CRT_WARN, CreateFileA("NUL", GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, 0));
+
     // Disable confusing "helpful" text message on abort, Ctrl-C
+    // 指定当程序异常终止时要采取的操作，也就是程序崩溃的时候如何处理。
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
+
+/*
+ * 这段代码是针对winows 32位系统的系统中的DEP(Data Execution Prevention，数据执行保护)，是WinXP SP3，WinVista >= SP1,
+ * Win Server 2008中加入为防止缓冲区溢出攻击的一种措施，保护特定内存中的数据不能当成代码一样执行。
+ * 这里之所以启用的原因是在GCC中的winbase.h中只有当系统版本满足_WIN32_WINNT >= 0x0601(Win 7)时才会启用DEP，
+ * 这就导致低版本就默认没有启用DEP。启用的方法是首先从动态链接库Kernel32.dll中寻找SetProcessDEPPolicy的函数地址
+ */
 #ifdef WIN32
     // Enable Data Execution Prevention (DEP)
     // Minimum supported OS versions: WinXP SP3, WinVista >= SP1, Win Server 2008
@@ -874,9 +907,13 @@ bool AppInitBasicSetup()
 #endif
     typedef BOOL (WINAPI *PSETPROCDEPPOL)(DWORD);
     PSETPROCDEPPOL setProcDEPPol = (PSETPROCDEPPOL)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "SetProcessDEPPolicy");
-    if (setProcDEPPol != nullptr) setProcDEPPol(PROCESS_DEP_ENABLE);
+    if (setProcDEPPol != nullptr) {
+	// 为该进程永久启用DEP，通过设置PROCESS_DEP_ENABLE启用DEP之后在该进程生命周期内无法再禁用DEP。
+	setProcDEPPol(PROCESS_DEP_ENABLE);
+    }
 #endif
 
+    // 初始化套接字(仅针对win32)
     if (!SetupNetworking())
         return InitError("Initializing networking failed");
 

@@ -48,7 +48,12 @@ void SelectBaseParams(const std::string& chain)
 {
     globalChainBaseParams = CreateBaseChainParams(chain);
 }
-
+/**
+ * 获取设置的当前出现运行的网络，一共三种：
+ * Main - 主网，也就是当前比特币所有用户交易的网络，bicoind 中的默认值
+ * Testnet: 测试网，测试网中专门有一天测试链，所有的交易都只是用于测试，并且测试网中的币可以方便的获取，主要目的就是模拟真实交易环境测试新的功能
+ * Regtest: 回归测试，又称为私有网，用于个人开发测试，挖矿难度较低，并且参数都可以自行设置
+ */
 std::string ChainNameFromCommandLine()
 {
     bool fRegTest = gArgs.GetBoolArg("-regtest", false);

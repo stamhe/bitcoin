@@ -342,6 +342,9 @@ int LogPrintStr(const std::string &str)
 
     std::string strTimestamped = LogTimestampStr(str, &fStartedNewLine);
 
+
+    // 首先判断判断fPrintToConsole是否为true，是的话就直接输出信息到终端；否则再判断fPrintToDebugLog是否为true，是的话就输出信息到debug.log文件中；
+    // 如果两个都没有定义，那么就不输出任何调试信息。
     if (fPrintToConsole)
     {
         // print to console
@@ -676,6 +679,7 @@ void ArgsManager::ReadConfigFile(const std::string& confPath)
         for (boost::program_options::detail::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it)
         {
             // Don't overwrite existing settings so command line settings override bitcoin.conf
+            // 不会覆盖配置，所以命令行配置优先于 bitcoin.conf 里面的配置
             std::string strKey = std::string("-") + it->string_key;
             std::string strValue = it->value[0];
             InterpretNegativeSetting(strKey, strValue);
@@ -907,7 +911,20 @@ void SetupEnvironment()
     // arenas per core. This is known to cause excessive virtual address space
     // usage in our usage. Work around it by setting the maximum number of
     // arenas to 1.
-    if (sizeof(void*) == 4) {
+
+    /*
+     * 判断是否为 32　位系统
+     * sizeof(void*)为 ４，代表的是 32 位系统; 为 8，代表的是 64 位系统
+     */
+    if (sizeof(void*) == 4)
+    {
+	/**
+	 * mallopt函数是用来控制malloc内存分配时的行为的(具体请参考http://man7.org/linux/man-pages/man3/mallopt.3.html)，
+	 * 而M_ARENA_MAX参数是值最多能创建的arena数，一个arena是指malloc在分内内存时的一个内存池，而这个arena是线程安全的，
+	 * 也就是说多线程访问时是互斥访问的，既然是互斥访问的，那么很明显，当arena数量越多时，线程的竞争就越小，
+	 * 但是需要的内存也就越多（因为arena就相当于一次性申请大量内存，然后在malloc时慢慢分配出去）。通过代码中的注释，
+	 * 我们发现glibc库会为每个核创建2个arena，而这会对32为系统造成虚拟地址空间不足的问题，所以这里设为1.
+	 */
         mallopt(M_ARENA_MAX, 1);
     }
 #endif
@@ -924,10 +941,16 @@ void SetupEnvironment()
     // in multithreading environments, it is set explicitly by the main thread.
     // A dummy locale is used to extract the internal default locale, used by
     // fs::path, which is then used to explicitly imbue the path.
+    /**
+     * locale()是设置系统区域，这将决定程序所使用的当前语言编码、日期格式、数字格式及其它与区域有关的设置。
+     * 最后两行是文件路径的本地化设置，主要涉及宽字符(Wide char)和多字节(Multi bytes)之间的转换问题。
+     */
     std::locale loc = fs::path::imbue(std::locale::classic());
     fs::path::imbue(loc);
 }
 
+// 在Windows下编写过网络通信程序的同学相信都知道，Windows使用Socket之前都需要先进行初始化，而这个SetupNetworking()就是起的这个作用。
+// 如果不是Windows环境那么就直接返回true。
 bool SetupNetworking()
 {
 #ifdef WIN32
