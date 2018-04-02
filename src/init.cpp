@@ -863,6 +863,7 @@ ServiceFlags nLocalServices = ServiceFlags(NODE_NETWORK | NODE_NETWORK_LIMITED);
     LogPrintf("Error: Out of memory. Terminating.\n");
 
     // The log was successful, terminate now.
+    // 处理方法是直接终止进程，从而避免可能的数据冲突
     std::terminate();
 };
 
@@ -918,6 +919,9 @@ bool AppInitBasicSetup()
         return InitError("Initializing networking failed");
 
 #ifndef WIN32
+    // 以系统的默认权限创建新文件，而不是077，此功能只有在禁用钱包功能的情况下才有效。
+    // 如果设置了-sysperms那么就以系统默认权限创建新的文件，如果没有设置该参数，那么通过umask来设置创建新文件时的权限，
+    // umask(077)表示创建的文件具有读写权限，创建的目录ower具有所有权限，所属组和其他用户没有任何权限。
     if (!gArgs.GetBoolArg("-sysperms", false)) {
         umask(077);
     }
@@ -930,9 +934,12 @@ bool AppInitBasicSetup()
     registerSignalHandler(SIGHUP, HandleSIGHUP);
 
     // Ignore SIGPIPE, otherwise it will bring the daemon down if the client closes unexpectedly
+    // 表示忽略管道断开信号
+    // 防止client通过socket连接到daemon之后client断开导致daemon终止的问题，而忽略SIGPIPE这个信号就可以解决。
     signal(SIGPIPE, SIG_IGN);
 #endif
 
+    // set_new_handler()函数的功能是设置当operator new无法满足某一内存分配需求时首先调用的处理函数
     std::set_new_handler(new_handler_terminate);
 
     return true;
