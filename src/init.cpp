@@ -953,12 +953,28 @@ bool AppInitParameterInteraction()
     // also see: InitParameterInteraction()
 
     // if using block pruning, then disallow txindex
-    if (gArgs.GetArg("-prune", 0)) {
+    // 启用区块修剪(block pruning)
+    /*
+     * 区块修剪允许bitcoin core删除raw block和undo data，一旦这些数据已经被验证和更新过数据库。
+     * 这时候的raw data只能用来转发区块到其他节点、处理区块重组、查看过去的交易（如果启用了-txindex交易索引或者通过RPC/REST接口调用）以及重新扫描钱包。
+     * 区块索引依然维护所有区块的元数据。
+     *
+     *
+在比特币运行的本地环境中，有四种类型的数据（在Linux环境下查看~/.bitcoin/目录）:
+1、raw block，从网络中接收的原始区块信息，对应文件为blk***.dat
+2、undo data，在进行chain reorganization时使用的数据，对应文件为rev***.dat。Chain reorganization是指某一个节点发现存在一条比节点当前本地维护的链更长的链，那么该节点就需要进行Chain reorganization，所以这个操作只是针对某一个节点而言的。
+3、block index，区块索引，每一个区块都有一个唯一的索引，对应文件为~/.bitcoin/blocks/index下的.ldblevel db数据库文件。
+4、UTXO，Unspent transaction output，表示所有未花费的交易，对应文件为~/.bitcoin/chainstate/中的.ldb文件。
+     */
+    if (gArgs.GetArg("-prune", 0))
+    {
+	// 因为block pruning需要删除一些区块的信息，而-txindex是对所有交易建立索引，所以这两者不兼容，如果同时设置了，那么则提示错误。
         if (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX))
             return InitError(_("Prune mode is incompatible with -txindex."));
     }
 
     // -bind and -whitebind can't be set when not listening
+    // 检测-listen和bind之间的冲突问题，也就是如果设置了bind的地址而没有设置listen那么就会报错并退出程序。
     size_t nUserBind = gArgs.GetArgs("-bind").size() + gArgs.GetArgs("-whitebind").size();
     if (nUserBind != 0 && !gArgs.GetBoolArg("-listen", DEFAULT_LISTEN)) {
         return InitError("Cannot set -bind or -whitebind together with -listen=0");
@@ -998,6 +1014,7 @@ bool AppInitParameterInteraction()
     }
 
     // Now remove the logging categories which were explicitly excluded
+    // 从集合中删除掉不想记录日志的目录，这时使用的是&= ~flag操作，~表示每一位取反，与上反码就表示将当前的目录编号从集合中去掉。
     for (const std::string& cat : gArgs.GetArgs("-debugexclude")) {
         uint32_t flag = 0;
         if (!GetLogCategory(&flag, &cat)) {
@@ -1027,13 +1044,19 @@ bool AppInitParameterInteraction()
         InitWarning("Unsupported argument -blockminsize ignored.");
 
     // Checkmempool and checkblockindex default to true in regtest mode
+    // 表示每隔多少个交易进行一次sanity check
     int ratio = std::min<int>(std::max<int>(gArgs.GetArg("-checkmempool", chainparams.DefaultConsistencyChecks() ? 1 : 0), 0), 1000000);
     if (ratio != 0) {
         mempool.setSanityCheck(1.0 / ratio);
     }
+
+    // 每隔一段时间检查mapBlockIndex、setBlockIndexCandidates、chainActive和mapBlockUnlinked变量的一致性。
     fCheckBlockIndex = gArgs.GetBoolArg("-checkblockindex", chainparams.DefaultConsistencyChecks());
+
+    // 该变量默认为1，表示不验证当前已经存在的链；如果为0，表示要检查一些校验点的区块信息是否正确，所有校验点的信息也都保存在chainparams中的checkpointdata中。
     fCheckpointsEnabled = gArgs.GetBoolArg("-checkpoints", DEFAULT_CHECKPOINTS_ENABLED);
 
+    // -assumevalid=blockid：表示在blockid之前的所有区块都假设正确的，也就是不用再去验证。如果没有设置，那么就要验证之前所有区块的签名信息。
     hashAssumeValid = uint256S(gArgs.GetArg("-assumevalid", chainparams.GetConsensus().defaultAssumeValid.GetHex()));
     if (!hashAssumeValid.IsNull())
         LogPrintf("Assuming ancestors of block %s have valid signatures.\n", hashAssumeValid.GetHex());
@@ -1055,10 +1078,28 @@ bool AppInitParameterInteraction()
     }
 
     // mempool limits
+    /*
+     * 首先计算mempool的最大值，后面乘以1000000是将单位从MB转换成B，然后计算最小的限制，其中，-limitdescendantsize的含义如下，
+     * 后面乘以1000将单位从KB转化成B，再乘以40表示最小可以容纳40个这个的交易族。
+     */
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
+
+    // -limitdescendantsize：如果某个交易在mempool中所有的祖先size之和超过该限制值，那么则拒绝接受该交易。单位为KB。
     int64_t nMempoolSizeMin = gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT) * 1000 * 40;
     if (nMempoolSizeMax < 0 || nMempoolSizeMax < nMempoolSizeMin)
         return InitError(strprintf(_("-maxmempool must be at least %d MB"), std::ceil(nMempoolSizeMin / 1000000.0)));
+
+    /**
+     * 在每个节点内部都可以设置以下几种费用来避免接收过多的交易，
+minrelaytxfee：最小的转发费用，如果交易费小于这个值，节点就直接忽略该交易。默认值为0.00001 BTC/KB。
+dustrelayfee：用来判定一笔交易时候是否是dust tx，如果是的话则忽略该交易。默认值为0.00001BTC/KB。
+incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempool中的交易数量超过阈值时，交易费用阈值便会增加，
+增加的程度就由incrementalrelayfee决定。默认值为0.00001BTC/KB。
+
+一个full-node对交易的处理流程如下：（1）首先判断交易的费用之和是否大于minrelayfee；（2）然后判断是否是dustrelayfee，如果是的话就转发给其他节点，
+自己忽略该交易；（3）最后判断费用是否满足当前的费用条件，当前的费用会根据交易数量动态的变化，当交易数量过多时，增加，交易减少时，也减小。
+     *
+     */
     // incremental relay fee sets the minimum feerate increase necessary for BIP 125 replacement in the mempool
     // and the amount the mempool min fee increases above the feerate of txs evicted due to mempool limiting.
     if (gArgs.IsArgSet("-incrementalrelayfee"))
@@ -1069,6 +1110,9 @@ bool AppInitParameterInteraction()
         incrementalRelayFee = CFeeRate(n);
     }
 
+    /**
+     * -par=N ：设置脚本验证线程数量，取值范围为[-2,16]，小于0表示令N个保持空闲，0表示自动检测，1表示不允许并行，大于等于2表示同一时刻最大线程数量，默认值为0。
+     */
     // -par=0 means autodetect, but nScriptCheckThreads==0 means no concurrency
     nScriptCheckThreads = gArgs.GetArg("-par", DEFAULT_SCRIPTCHECK_THREADS);
     if (nScriptCheckThreads <= 0)
@@ -1078,6 +1122,13 @@ bool AppInitParameterInteraction()
     else if (nScriptCheckThreads > MAX_SCRIPTCHECK_THREADS)
         nScriptCheckThreads = MAX_SCRIPTCHECK_THREADS;
 
+    /**
+     *
+-prune参数已经介绍过，用来删除已经验证过的区块，取值有以下几种：
+0：默认值，表示禁止该功能。
+1：表示允许手动使用RPC命令删除旧的区块。
+大于等于550：表示允许保存的raw block + undo data文件总大小，其中550MB = MIN_DISK_SPACE_FOR_BLOCK_FILES。
+     */
     // block pruning; get the amount of disk space (in MiB) to allot for block & undo files
     int64_t nPruneArg = gArgs.GetArg("-prune", 0);
     if (nPruneArg < 0) {
