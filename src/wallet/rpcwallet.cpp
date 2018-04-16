@@ -205,6 +205,13 @@ UniValue getlabeladdress(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if (!IsDeprecatedRPCEnabled("accounts") && request.strMethod == "getaccountaddress") {
+        if (request.fHelp) {
+            throw std::runtime_error("getaccountaddress (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "getaccountaddress is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
+    }
+
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
             "getlabeladdress \"label\" ( force ) \n"
@@ -304,6 +311,13 @@ UniValue setlabel(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if (!IsDeprecatedRPCEnabled("accounts") && request.strMethod == "setaccount") {
+        if (request.fHelp) {
+            throw std::runtime_error("setaccount (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "setaccount is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
+    }
+
     if (request.fHelp || request.params.size() != 2)
         throw std::runtime_error(
             "setlabel \"address\" \"label\"\n"
@@ -351,6 +365,13 @@ UniValue getaccount(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if (!IsDeprecatedRPCEnabled("accounts")) {
+        if (request.fHelp) {
+            throw std::runtime_error("getaccount (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "getaccount is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
+    }
+
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "getaccount \"address\"\n"
@@ -385,6 +406,13 @@ UniValue getaddressesbyaccount(const JSONRPCRequest& request)
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
+    }
+
+    if (!IsDeprecatedRPCEnabled("accounts")) {
+        if (request.fHelp) {
+            throw std::runtime_error("getaddressbyaccount (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "getaddressesbyaccount is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
     }
 
     if (request.fHelp || request.params.size() != 1)
@@ -742,6 +770,13 @@ UniValue getreceivedbylabel(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if (!IsDeprecatedRPCEnabled("accounts") && request.strMethod == "getreceivedbyaccount") {
+        if (request.fHelp) {
+            throw std::runtime_error("getreceivedbyaccount (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "getreceivedbyaccount is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
+    }
+
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
             "getreceivedbylabel \"label\" ( minconf )\n"
@@ -909,6 +944,13 @@ UniValue movecmd(const JSONRPCRequest& request)
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
+    }
+
+    if (!IsDeprecatedRPCEnabled("accounts")) {
+        if (request.fHelp) {
+            throw std::runtime_error("move (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "move is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
     }
 
     if (request.fHelp || request.params.size() < 3 || request.params.size() > 5)
@@ -1606,6 +1648,13 @@ UniValue listreceivedbylabel(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if (!IsDeprecatedRPCEnabled("accounts") && request.strMethod == "listreceivedbyaccount") {
+        if (request.fHelp) {
+            throw std::runtime_error("listreceivedbyaccount (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "listreceivedbyaccount is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
+    }
+
     if (request.fHelp || request.params.size() > 3)
         throw std::runtime_error(
             "listreceivedbylabel ( minconf include_empty include_watchonly)\n"
@@ -1903,6 +1952,13 @@ UniValue listaccounts(const JSONRPCRequest& request)
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
+    }
+
+    if (!IsDeprecatedRPCEnabled("accounts")) {
+        if (request.fHelp) {
+            throw std::runtime_error("listaccounts (Deprecated, will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts)");
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, "listaccounts is deprecated and will be removed in V0.18. To use this command, start bitcoind with -deprecatedrpc=accounts.");
     }
 
     if (request.fHelp || request.params.size() > 2)
