@@ -1306,7 +1306,13 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
     CTxUndo txundo;
     UpdateCoins(tx, inputs, txundo, nHeight);
 }
-
+/*
+scriptSig就是用户的签名也是解锁脚本
+witness是隔离见证中从scriptSig中分离出来的
+scriptPubKey也就是锁定脚本
+然后调用VerifyScript来验证锁定脚本和解锁脚本是否能正确结合运行。
+关于脚本的验证和执行以及脚本的结构，包含的具体内容等等
+ */
 bool CScriptCheck::operator()() {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
@@ -1669,6 +1675,7 @@ static bool WriteTxIndexDataForBlock(const CBlock& block, CValidationState& stat
 
 static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
+// 首先给当前线程重命名为bitcoin-scriptch，然后启动线程
 void ThreadScriptCheck() {
     RenameThread("bitcoin-scriptch");
     scriptcheckqueue.Thread();

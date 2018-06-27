@@ -175,7 +175,14 @@ bool SelfTest(TransformType tr) {
 TransformType Transform = sha256::Transform;
 
 } // namespace
-
+/*
+对于64位的系统通过__get_cpuid获取cpuid，然后通过ecx来获取具体芯片的feature flags，具体可以参考https://en.wikipedia.org/wiki/CPUID，
+ecx的第19位正好对应sse4.1的指令，其他情况就返回standard。接下来的RandomInit()同样也是根据cpuid来决定是否增加RDRAND作为额外的随机源，
+对于RDRAND这里https://software.intel.com/en-us/blogs/2012/11/17/the-difference-between-rdrand-and-rdseed有很好的解释，
+上面链接主要解释RDRAND和RDSEED的却别，简单来说就是根据输出的值的作用来决定使用哪个，
+如果输出是作为其他PRNG（Pseudorandom number generator， 伪随机数生成器）的种子，那么就使用RDSEED；其他情况都使用RDRAND。
+ECC_Start()开始进行椭圆曲线参数初始化。比特币中所有的公钥、私钥、签名等密码学技术基本上都是使用的椭圆曲线体系。
+ */
 std::string SHA256AutoDetect()
 {
 #if defined(USE_ASM) && (defined(__x86_64__) || defined(__amd64__))

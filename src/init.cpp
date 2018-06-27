@@ -703,14 +703,17 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
  */
 bool InitSanityCheck(void)
 {
+    // 椭圆曲线测试
     if(!ECC_InitSanityCheck()) {
         InitError("Elliptic curve cryptography sanity check failure. Aborting.");
         return false;
     }
 
+    // glibc和glibcxx库测试
     if (!glibc_sanity_test() || !glibcxx_sanity_test())
         return false;
 
+    // 随机数生成环境测试
     if (!Random_SanityCheck()) {
         InitError("OS cryptographic RNG sanity check failure. Aborting.");
         return false;
@@ -986,6 +989,9 @@ bool AppInitParameterInteraction()
     nMaxConnections = std::max(nUserMaxConnections, 0);
 
     // Trim requested connection counts, to fit into system limitations
+    // 首先判断文件描述符的数量是否够用，如果不够用那么直接报错并退出程序；
+    // 然后判断命令行设置的-maxconnections是否超过了系统支持的最大连接数，
+    // 如果超过了，那么就提示强制设置为系统的最大连接数。
     nMaxConnections = std::max(std::min(nMaxConnections, FD_SETSIZE - nBind - MIN_CORE_FILEDESCRIPTORS - MAX_ADDNODE_CONNECTIONS), 0);
     nFD = RaiseFileDescriptorLimit(nMaxConnections + MIN_CORE_FILEDESCRIPTORS + MAX_ADDNODE_CONNECTIONS);
     if (nFD < MIN_CORE_FILEDESCRIPTORS)
@@ -1045,6 +1051,14 @@ bool AppInitParameterInteraction()
 
     // Checkmempool and checkblockindex default to true in regtest mode
     // 表示每隔多少个交易进行一次sanity check
+    /*
+首先判断chainparams中的DefaultConsistencyChecks是否为true，如果这个变量为false，那么ratio=0，也就是不进行sanity check。
+Sanity check之前在http://blog.csdn.net/pure_lady/article/details/77776716#t2中CTxMemPool类中介绍过，
+表示检查mempool中所有交易的一致性（没有双花，所有的输入都是合法的）。
+对于chainparams这个变量的也在http://blog.csdn.net/pure_lady/article/details/77895680中的SelectParams函数中介绍过，
+首先根据设置的网络MAIN、TESTNET或者REGTEST选择相应的参数，三个网络根据src/chainparams.cpp中给参数定义不同的值，
+对于DefaultConsistencyChecks这个参数，MAIN和TESTNET都为false，而REGTEST中此变量为true。
+     */
     int ratio = std::min<int>(std::max<int>(gArgs.GetArg("-checkmempool", chainparams.DefaultConsistencyChecks() ? 1 : 0), 0), 1000000);
     if (ratio != 0) {
         mempool.setSanityCheck(1.0 / ratio);
@@ -1080,7 +1094,7 @@ bool AppInitParameterInteraction()
     // mempool limits
     /*
      * 首先计算mempool的最大值，后面乘以1000000是将单位从MB转换成B，然后计算最小的限制，其中，-limitdescendantsize的含义如下，
-     * 后面乘以1000将单位从KB转化成B，再乘以40表示最小可以容纳40个这个的交易族。
+     * 后面乘以1000将单位从KB转化成B，再乘以40表示最小可以容纳40个这样的交易族。
      */
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
 
@@ -1096,8 +1110,10 @@ dustrelayfee：用来判定一笔交易时候是否是dust tx，如果是的话�
 incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempool中的交易数量超过阈值时，交易费用阈值便会增加，
 增加的程度就由incrementalrelayfee决定。默认值为0.00001BTC/KB。
 
-一个full-node对交易的处理流程如下：（1）首先判断交易的费用之和是否大于minrelayfee；（2）然后判断是否是dustrelayfee，如果是的话就转发给其他节点，
-自己忽略该交易；（3）最后判断费用是否满足当前的费用条件，当前的费用会根据交易数量动态的变化，当交易数量过多时，增加，交易减少时，也减小。
+一个full-node对交易的处理流程如下：
+（1）首先判断交易的费用之和是否大于minrelayfee；
+（2）然后判断是否是dustrelayfee，如果是的话就转发给其他节点，自己忽略该交易；
+（3）最后判断费用是否满足当前的费用条件，当前的费用会根据交易数量动态的变化，当交易数量过多时，增加，交易减少时，也减小。
      *
      */
     // incremental relay fee sets the minimum feerate increase necessary for BIP 125 replacement in the mempool
@@ -1147,10 +1163,19 @@ incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempoo
         fPruneMode = true;
     }
 
+    // -timeout：表示在发起TCP连接时的等待时间，单位是毫秒，默认值为5000
     nConnectTimeout = gArgs.GetArg("-timeout", DEFAULT_CONNECT_TIMEOUT);
     if (nConnectTimeout <= 0)
         nConnectTimeout = DEFAULT_CONNECT_TIMEOUT;
-
+/*
+在上一章http://blog.csdn.net/pure_lady/article/details/77982837#t3部分我们介绍了几种不同的费用，以及节点在收到交易时的处理流程。
+现在这里就到了设置这些变量的值的时候，首先是minrelayfee，最小转发费用，从代码中可以发现如果incrementalRelayFee大于minRelayFee ，
+那么minRelayFee=incrementalRelayFee。
+-blockmintxfee：设置交易被打包进区块的最小费用率，单位为BTC/KB，默认值为0.00001。
+接下来的blockmintxfee是针对矿工而言的，矿工在将交易打包进区块之前先判断交易费是否满足条件，避免出现入不敷出的情况，
+因为矿工在挖矿时也有一定的成本，而交易费也是收益的一部分来源，所以矿工也要尽量让自己利益最大化。
+最后的dustrelayfee在上一章也介绍过，这里只是读取命令行中设置的值并传给destRelayFee变量。
+ */
     if (gArgs.IsArgSet("-minrelaytxfee")) {
         CAmount n = 0;
         if (!ParseMoney(gArgs.GetArg("-minrelaytxfee", ""), n)) {
@@ -1166,6 +1191,7 @@ incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempoo
 
     // Sanity check argument for min fee for including tx in block
     // TODO: Harmonize which arguments need sanity checking and where that happens
+    // -blockmintxfee：设置交易被打包进区块的最小费用率，单位为BTC/KB，默认值为0.00001
     if (gArgs.IsArgSet("-blockmintxfee"))
     {
         CAmount n = 0;
@@ -1175,6 +1201,7 @@ incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempoo
 
     // Feerate used to define dust.  Shouldn't be changed lightly as old
     // implementations may inadvertently create non-standard transactions
+    // dustrelayfee在上一章也介绍过，这里只是读取命令行中设置的值并传给destRelayFee变量
     if (gArgs.IsArgSet("-dustrelayfee"))
     {
         CAmount n = 0;
@@ -1183,9 +1210,13 @@ incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempoo
         dustRelayFee = CFeeRate(n);
     }
 
+    // -acceptnonstdtxn：是否接受或者转发非标准交易，只适用于testnet和regtest，默认值为1
     fRequireStandard = !gArgs.GetBoolArg("-acceptnonstdtxn", !chainparams.RequireStandard());
+    // 判断chainparams中的参数和-acceptnonstdtxn参数的值是否相互冲突
     if (chainparams.RequireStandard() && !fRequireStandard)
         return InitError(strprintf("acceptnonstdtxn is not currently supported for %s chain", chainparams.NetworkIDString()));
+
+    // -bytespersigop：设置交易中每个sigop的大小，单位为字节，默认值为20
     nBytesPerSigOp = gArgs.GetArg("-bytespersigop", nBytesPerSigOp);
 
 #ifdef ENABLE_WALLET
@@ -1193,24 +1224,44 @@ incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempoo
         return false;
 #endif
 
+    // 是否允许转发non-P2SH多签名，默认值为1
     fIsBareMultisigStd = gArgs.GetBoolArg("-permitbaremultisig", DEFAULT_PERMIT_BAREMULTISIG);
+    // 表示是否允许在交易中写入数据，默认为1
     fAcceptDatacarrier = gArgs.GetBoolArg("-datacarrier", DEFAULT_ACCEPT_DATACARRIER);
+    // 表示交易中写入数据的最大大小，默认值为83
     nMaxDatacarrierBytes = gArgs.GetArg("-datacarriersize", nMaxDatacarrierBytes);
 
     // Option to startup with mocktime set (used for regression testing):
+    // -mocktime=<n>：设定系统模拟时间，只适用于regression test，模拟时间表示将时间设置为创世后n秒，即时间从0年0月0日0时0分n秒开始
     SetMockTime(gArgs.GetArg("-mocktime", 0)); // SetMockTime(0) is a no-op
 
+/*
+首先模拟时间比较容易理解，就是将当前时间设为0+n秒；接着peerbloomfilters参数决定是否开启bloom filter服务，
+该服务的主要功能是按照一定条件过滤某些特定的交易给自己或者其他节点；然后rpcserialversion设定序列化版本，
+具体在何处使用到还的看接下来的分析；最后maxtipage表示如果当前时间和本地区块链最后一个区块生成的时间差大于maxtipage那么将执行IBD函数，
+IBD函数表示要一次性下载大量的区块，具体介绍请参考https://bitcoin.org/en/developer-guide#initial-block-download，默认值为24小时，
+也就是说如果节点一天没有更新本地的区块链信息，那么就会执行IBD来从网络同步区块。
+ */
+    // -peerbloomfilters：是否支持使用bloom filter来过滤区块和交易，默认为1
     if (gArgs.GetBoolArg("-peerbloomfilters", DEFAULT_PEERBLOOMFILTERS))
         nLocalServices = ServiceFlags(nLocalServices | NODE_BLOOM);
 
+    // -rpcserialversion：设置原始交易或者区块在non-verbose模式下的返回值，取值只有两种，0表示non-segwit，1表示segwit，默认值为1
     if (gArgs.GetArg("-rpcserialversion", DEFAULT_RPC_SERIALIZE_VERSION) < 0)
         return InitError("rpcserialversion must be non-negative.");
 
     if (gArgs.GetArg("-rpcserialversion", DEFAULT_RPC_SERIALIZE_VERSION) > 1)
         return InitError("unknown rpcserialversion requested.");
 
+    // -maxtipage：执行IBD(Initial block download)的最大时间间隔，单位为秒，默认值为86400，也就是24小时
     nMaxTipAge = gArgs.GetArg("-maxtipage", DEFAULT_MAX_TIP_AGE);
 
+    // -mempoolreplacement：启用内存池中的交易替换
+/*
+所谓交易替换就是指全节点的mempool中如果有多个交易花费了相同的inputs，那么他们之间允许替换。
+不过代码的if语句没有看懂，从第一句GetBoolArg()来看，mempoolreplacement应该是数值类型，
+但是后面又要在数值型中查找字符串，那结果肯定是false，所以还是不明白为什么这么写。
+ */
     fEnableReplacement = gArgs.GetBoolArg("-mempoolreplacement", DEFAULT_ENABLE_REPLACEMENT);
     if ((!fEnableReplacement) && gArgs.IsArgSet("-mempoolreplacement")) {
         // Minimal effort at forwards compatibility
@@ -1220,6 +1271,15 @@ incrementalrelayfee：用来改变mempool最低交易费用的变量，当mempoo
         fEnableReplacement = (std::find(vstrReplacementModes.begin(), vstrReplacementModes.end(), "fee") != vstrReplacementModes.end());
     }
 
+    // -vbparams=deploytment:start:end：设置新的机制启用时间和终止时间，只用于regtest
+/*
+用于测试新的功能，所以只用于regtest，首先检测chainparams中的fMineBlocksOnDemand参数是否为true，
+这个参数的含义是让miner在挖到新的block后停止挖矿，直到接到新的命令，而fMineBlocksOnDemand参数在main和testnet中都为false，
+只有在regtest中才为true，chainparams.MineBlocksOnDemand()函数就是直接返回fMineBlocksOnDemand变量的值。
+在命令行中可以指定多个-vbparams从而同时启用多个新的机制，代码中接下来的for循环就是枚举每一个机制进行处理，
+输入的形式是deployment:start:end，然后分别解析三个参数的值，其中第一个是string类型，后面两个是int64_t类型，
+解析完之后在系统的deployments表中查找对应名字的机制，系统的deployments表在src/versionbits.cpp中
+ */
     if (gArgs.IsArgSet("-vbparams")) {
         // Allow overriding version bits parameters for testing
         if (!chainparams.MineBlocksOnDemand()) {
@@ -1276,17 +1336,32 @@ bool AppInitSanityChecks()
     // Initialize elliptic curve code
     std::string sha256_algo = SHA256AutoDetect();
     LogPrintf("Using the '%s' SHA256 implementation\n", sha256_algo);
+/**
+RandomInit()同样也是根据cpuid来决定是否增加RDRAND作为额外的随机源，
+对于RDRAND这里https://software.intel.com/en-us/blogs/2012/11/17/the-difference-between-rdrand-and-rdseed有很好的解释，
+上面链接主要解释RDRAND和RDSEED的却别，简单来说就是根据输出的值的作用来决定使用哪个，
+如果输出是作为其他PRNG（Pseudorandom number generator， 伪随机数生成器）的种子，那么就使用RDSEED；其他情况都使用RDRAND。
+ */
     RandomInit();
+
+    // ECC_Start()开始进行椭圆曲线参数初始化
     ECC_Start();
     globalVerifyHandle.reset(new ECCVerifyHandle());
 
     // Sanity check
+/*
+进行bitcoin运行时需要的一些基本库的完整性检测，就是调用测试程序来测试它们是否都正常工作，以确保bitcoin运行环境正常。
+ */
     if (!InitSanityCheck())
         return InitError(strprintf(_("Initialization sanity check failed. %s is shutting down."), _(PACKAGE_NAME)));
 
     // Probe the data directory lock to give an early error message, if possible
     // We cannot hold the data directory lock here, as the forking for daemon() hasn't yet happened,
     // and a fork will cause weird behavior to it.
+/**
+函数传入一个bool型参数probeOnly，为true表示只是测试是否能进行锁定但并不实际锁定，false表示将数据目录（也就是~/.bitcoin/）进行锁定，
+这里的锁定是指进程间的锁定，也就是只允许当前进程访问锁定的文件，其他进程不允许访问，如果probeOnly为true，那么在锁定之后再进行解锁。
+ */
     return LockDataDirectory(true);
 }
 
@@ -1304,17 +1379,27 @@ bool AppInitLockDataDirectory()
 
 bool AppInitMain()
 {
+    // 获取chainparams，这个变量之前出现过多次，主要是包含一些共识的参数，自身是根据选择不同的网络main、testnet或者regtest来生成不同的参数
     const CChainParams& chainparams = Params();
     // ********************************************************* Step 4a: application initialization
+/*
+对于非Windows系统创建进程的PID文件，
+转载：http://www.linuxidc.com/Linux/2012-12/76950.htm
+(1) pid文件的内容：pid文件为文本文件，内容只有一行, 记录了该进程的ID。 用cat命令可以看到。
+(2) pid文件的作用：防止进程启动多个副本。只有获得pid文件(固定路径固定文件名)写入权限(F_WRLCK)的进程才能正常启动并把自身的PID写入该文件中。其它同一个程序的多余进程则自动退出。
+通过上面文章我们知道pid文件的作用就是防止进程启动多个副本，从而打乱原有的消息传输。
+ */
 #ifndef WIN32
     CreatePidFile(GetPidFile(), getpid());
 #endif
+    // -shrinkdebugfile：限制日志文件的大小，如果没有设置-debug参数，那么该变量的默认值为1
     if (gArgs.GetBoolArg("-shrinkdebugfile", logCategories == BCLog::NONE)) {
         // Do this first since it both loads a bunch of debug.log into memory,
         // and because this needs to happen before any other debug.log printing
         ShrinkDebugFile();
     }
 
+    // fPrintToDebugLog表示是否打开debug.log文件，默认值为true，只有在bench_bitcoin.cpp中才设为false
     if (fPrintToDebugLog) {
         if (!OpenDebugLog()) {
             return InitError(strprintf("Could not open debug log file %s", GetDebugLogPath().string()));
@@ -1337,9 +1422,14 @@ bool AppInitMain()
             gArgs.GetArg("-datadir", ""), fs::current_path().string());
     }
 
+    // 这俩函数首先都是从命令行中获取-maxsigcachesize参数的值，然后分别通过signatureCache和scriptExecutionCache中的set_bytes()函数设置最大的缓存大小。
+    // 这个两个变量的类型都是Cache
     InitSignatureCache();
     InitScriptExecutionCache();
 
+/*
+nScriptCheckThreads是由参数中-par设定的，位于http://blog.csdn.net/pure_lady/article/details/77982837#t4，这段代码是根据参数来创建线程具体的线程
+ */
     LogPrintf("Using %u threads for script verification\n", nScriptCheckThreads);
     if (nScriptCheckThreads) {
         for (int i=0; i<nScriptCheckThreads-1; i++)
@@ -1355,6 +1445,11 @@ bool AppInitMain()
 
     /* Register RPC commands regardless of -server setting so they will be
      * available in the GUI RPC console even if external calls are disabled.
+     */
+    /*
+所谓注册RPC命令，其实解释将信号和处理函数connect起来，方式就是使用boost的signal/slot模式，
+但是这里做的只是将一些指令添加到一个类型为CRPCTable的tableRPC变量中，这个tableRPC维护了所有的命令和对应的处理函数，
+收到相应的RPC命令是再调用CRPCTable类中execute函数执行请求。
      */
     RegisterAllCoreRPCCommands(tableRPC);
 #ifdef ENABLE_WALLET
