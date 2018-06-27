@@ -1306,6 +1306,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
     CTxUndo txundo;
     UpdateCoins(tx, inputs, txundo, nHeight);
 }
+
 /*
 scriptSig就是用户的签名也是解锁脚本
 witness是隔离见证中从scriptSig中分离出来的
